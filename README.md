@@ -1,6 +1,5 @@
 # Multi-label-Classification
-<<<<<<< HEAD
-labels contain class and it's attribute
+Multi-label attributes Classification and CAM
 
 训练的分类准确率达到0.8
 
@@ -39,6 +38,4 @@ have_hat.jpg (分类错误)
 [3] https://github.com/keras-team/keras/issues/741
 
 [4] https://github.com/suraj-deshmukh/Multi-Label-Image-Classification/blob/master/miml.ipynb
-=======
-Multi-label attributes Classification and CAM
->>>>>>> d647dc881c3db46d68511e38e5ba0616694d31f4
+
