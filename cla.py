@@ -1,0 +1,140 @@
+# coding:utf-8
+import keras
+from keras.preprocessing.image import ImageDataGenerator
+import matplotlib.pyplot as plt
+from keras import backend as K
+from keras import optimizers
+import numpy as np
+import argparse
+import sys
+import mulNet
+import load_data
+
+# dimensions of our images.
+img_width, img_height = 224, 224
+
+nb_train_samples = 4013
+nb_test_samples = 4022
+# nb_validation_samples = 60
+epochs = 30
+batch_size = 32
+
+if K.image_data_format() == 'channels_first':
+    input_shape = (3, img_width, img_height)
+else:
+    input_shape = (img_width, img_height, 3)
+
+
+base_model, model = mulNet.build_vgg_raw(img_width, img_height)
+
+
+def train(X_train, X_test, y_train, y_test):
+
+    # opt = optimizers.RMSprop(lr=0.001 ,decay=1e-6)
+    # model.compile(loss='categorical_crossentropy', # 多分类
+    #               optimizer=opt,  # 'rmsprop'
+    #               # loss_weights=[0.1, 0.9],
+    #               metrics=['accuracy'])
+
+    #  augmentation configuration use for training
+    train_datagen = ImageDataGenerator(
+        rotation_range=30,
+        # rescale=1. / 255,
+        shear_range=0.2,
+        zoom_range=0.2,
+        horizontal_flip=True,
+        width_shift_range = 0.1,
+        height_shift_range = 0.1,
+        fill_mode = "nearest"
+    )
+
+    train_generator = train_datagen.flow(X_train, y_train, batch_size=32, shuffle=True, seed=None)
+    val_generator = ImageDataGenerator().flow(X_test, y_test, batch_size=32, shuffle=True, seed=None)
+
+
+    print('训练顶层分类器')
+
+    for layer in base_model.layers:
+        layer.trainable = False
+
+
+    opt = optimizers.Adam(lr=1e-3 ,decay=1e-6, amsgrad=True)
+    model.compile(loss='binary_crossentropy', # 多分类
+                  optimizer=opt,  # 'rmsprop'
+                  # loss_weights=[0.1, 0.9],
+                  metrics=['accuracy'])
+
+    history_t1 = model.fit_generator(
+        train_generator,
+        validation_data=val_generator,
+        steps_per_epoch=nb_train_samples // batch_size,
+        epochs=epochs)
+
+    print('对顶层分类器fine-tune')
+
+    for layer in model.layers[:11]:
+        layer.trainable = False
+    for layer in model.layers[11:]:
+        layer.trainable = True
+
+
+    opt = optimizers.SGD(lr=1e-4, decay=1e-6, momentum=0.9)
+    model.compile(loss='binary_crossentropy',  # 多分类
+                  optimizer=opt,  # 'rmsprop'
+                  # loss_weights=[0.1, 0.9],
+                  metrics=['accuracy'])
+
+    history_ft = model.fit_generator(
+        train_generator,
+        validation_data=val_generator,
+        steps_per_epoch=nb_train_samples // batch_size,
+        epochs=epochs)
+
+
+    model.save('first_blood.h5')
+    plot_training(history_ft)
+
+
+def plot_training(history):
+    acc = history.history['acc']
+    val_acc = history.history['val_acc']
+    loss = history.history['loss']
+    val_loss = history.history['val_loss']
+    epochs = range(len(acc))
+
+    plt.plot(epochs, acc, 'r.')
+    plt.plot(epochs, val_acc, 'r')
+    plt.title('Training and validation accuracy')
+
+    plt.figure()
+    plt.plot(epochs, loss, 'r.')
+    plt.plot(epochs, val_loss, 'r-')
+    plt.title('Training and validation loss')
+    plt.show()
+
+
+
+if __name__=='__main__':
+
+    arg = argparse.ArgumentParser(description='Process the input_output path.')
+    arg.add_argument("-train_data", "--train_data", default='./attributes_dataset/train/',
+                     help="path to input train_dataset")
+    arg.add_argument("-train_label", "--train_label", default='./attributes_dataset/train_label.txt',
+                     help="path to input train_label")
+    arg.add_argument("-test_data", "--test_data", default='./attributes_dataset/test/',
+                     help="path to input test_dataset")
+    arg.add_argument("-test_label", "--test_label", default='./attributes_dataset/test_label.txt',
+                     help="path to input test_label")
+    args = arg.parse_args()
+
+
+    train_data_dir = vars(args)['train_data']
+    train_label_dir = vars(args)['train_label']
+    test_data_dir = vars(args)['test_data']
+    test_label_dir = vars(args)['test_label']
+    train_data, train_labels = load_data.load_data(img_width, img_height, train_data_dir, train_label_dir)
+    test_data, test_labels = load_data.load_data(img_width, img_height, test_data_dir, test_label_dir)
+
+
+    train(train_data, test_data, train_labels, test_labels)
+    # score = model.evaluate(X_test, y_test, batch_size=32)
