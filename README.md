@@ -53,3 +53,4 @@ have_hat.jpg (分类错误)
 
 [4] https://github.com/suraj-deshmukh/Multi-Label-Image-Classification/blob/master/miml.ipynb
 
+[5]https://bindog.github.io/blog/2018/02/10/model-explanation/
